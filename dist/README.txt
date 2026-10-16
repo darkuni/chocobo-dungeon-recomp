@@ -1,4 +1,4 @@
-Final Fantasy Fables: Chocobo's Dungeon - native Windows build (static recompilation)  v0.5
+Final Fantasy Fables: Chocobo's Dungeon - native Windows build (static recompilation)  v0.6
 
 Folder layout (portable - copy the whole folder to any Windows 10/11 PC)
   ChocoboDungeon\
@@ -26,6 +26,8 @@ Settings (chocobo.ini)
   window_scale = 2
   controls = sideways      or "nunchuk" or "classic" - pick the matching grip in the game's grip menu
                            (Classic Controller belongs to the game's "Sideways" grip)
+  swap_ab_xy = 0           gamepad: 1 = swap A<->B and X<->Y (use the face buttons by position, Nintendo style;
+                           also applies to the settings menu's confirm/back)
   speed = 1                game speed: 1 = normal, 2 = double, 3 = triple, 0 = unlimited.
                            The game's logic runs per frame, so this is fast-forward, not extra smoothness.
                            Hold Tab (keyboard) or click the right stick for a burst of unlimited speed.

@@ -18,6 +18,7 @@ static void set(const std::string& k, const std::string& v) {
     else if (k == "controls") g_cfg.controls = v;
     else if (k == "show_perf") g_cfg.show_perf = b();
     else if (k == "anisotropy") { int a = atoi(v.c_str()); g_cfg.anisotropy = a >= 16 ? 16 : a >= 8 ? 8 : a >= 4 ? 4 : a >= 2 ? 2 : 1; }
+    else if (k == "swap_ab_xy") g_cfg.swap_ab_xy = b();
     else if (k == "speed") { int a = atoi(v.c_str()); g_cfg.speed = a <= 0 ? 0 : a >= 3 ? 3 : a; }
     else if (k == "smooth_textures") g_cfg.smooth_textures = b();
     else if (k == "msaa") { int a = atoi(v.c_str()); g_cfg.msaa = a >= 8 ? 8 : a >= 4 ? 4 : a >= 2 ? 2 : 1; }
@@ -50,7 +51,7 @@ void config_load(const char* exe_path) {
         fclose(f);
     }
     const char* keys[] = {"resolution_scale", "vsync", "widescreen", "fullscreen", "window_scale", "controls", "show_perf",
-                          "anisotropy", "smooth_textures", "msaa", "speed"};
+                          "anisotropy", "smooth_textures", "msaa", "speed", "swap_ab_xy"};
     for (const char* k : keys) {
         std::string env = k;
         std::transform(env.begin(), env.end(), env.begin(), ::toupper);
@@ -77,6 +78,8 @@ void config_save() {
         "; Controls: sideways (Wii Remote held sideways), nunchuk (Wii Remote + Nunchuk) or classic (Classic Controller).\n"
         "; Pick the same grip in the game's menu.\n"
         "controls = %s\n"
+        "; Gamepad: swap A<->B and X<->Y (use the buttons by position, Nintendo style)\n"
+        "swap_ab_xy = %d\n"
         "; Show frame rate in the corner of the screen and the console\n"
         "show_perf = %d\n"
         "; Anisotropic texture filtering (sharper floors and walls at an angle): 1 = off, 2, 4, 8, 16\n"
@@ -89,6 +92,6 @@ void config_save() {
         "; The game logic is tied to its frame rate, so this is fast-forward. Hold Tab (or click the right stick) for unlimited.\n"
         "speed = %d\n",
         g_cfg.resolution_scale, g_cfg.widescreen, g_cfg.vsync, g_cfg.fullscreen, g_cfg.window_scale,
-        g_cfg.controls.c_str(), g_cfg.show_perf, g_cfg.anisotropy, g_cfg.smooth_textures, g_cfg.msaa, g_cfg.speed);
+        g_cfg.controls.c_str(), g_cfg.swap_ab_xy, g_cfg.show_perf, g_cfg.anisotropy, g_cfg.smooth_textures, g_cfg.msaa, g_cfg.speed);
     fclose(w);
 }

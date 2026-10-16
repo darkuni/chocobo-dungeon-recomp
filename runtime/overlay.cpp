@@ -37,6 +37,7 @@ static const std::vector<Item>& items() {
         {"VSync", {"Off", "On"}, nullptr},
         {"Fullscreen", {"Off", "On"}, nullptr},
         {"Controls", {"Wii Remote sideways", "Wii Remote + Nunchuk", "Classic Controller"}, "Choose the same grip in the game's grip menu."},
+        {"Swap A/B and X/Y", {"Off", "On"}, "Gamepad: use the face buttons by position (Nintendo style)."},
         {"Frame rate display", {"Off", "On"}, nullptr},
         {"Anti-aliasing", {"Off", "2x MSAA", "4x MSAA", "8x MSAA"}, "Smooths jagged edges of 3D models."},
         {"Texture smoothing", {"Off (original)", "On (trilinear)"}, "Mipmaps: removes shimmer on distant textures."},
@@ -54,11 +55,12 @@ static int get_value(int i) {
         case 2: return g_cfg.vsync ? 1 : 0;
         case 3: return g_cfg.fullscreen ? 1 : 0;
         case 4: return g_cfg.controls == "nunchuk" ? 1 : g_cfg.controls == "classic" ? 2 : 0;
-        case 5: return g_cfg.show_perf ? 1 : 0;
-        case 6: return g_cfg.msaa >= 8 ? 3 : g_cfg.msaa >= 4 ? 2 : g_cfg.msaa >= 2 ? 1 : 0;
-        case 7: return g_cfg.smooth_textures ? 1 : 0;
-        case 8: return g_cfg.speed == 0 ? 3 : g_cfg.speed - 1;
-        case 9: return g_cfg.anisotropy >= 16 ? 4 : g_cfg.anisotropy >= 8 ? 3 : g_cfg.anisotropy >= 4 ? 2 : g_cfg.anisotropy >= 2 ? 1 : 0;
+        case 5: return g_cfg.swap_ab_xy ? 1 : 0;
+        case 6: return g_cfg.show_perf ? 1 : 0;
+        case 7: return g_cfg.msaa >= 8 ? 3 : g_cfg.msaa >= 4 ? 2 : g_cfg.msaa >= 2 ? 1 : 0;
+        case 8: return g_cfg.smooth_textures ? 1 : 0;
+        case 9: return g_cfg.speed == 0 ? 3 : g_cfg.speed - 1;
+        case 10: return g_cfg.anisotropy >= 16 ? 4 : g_cfg.anisotropy >= 8 ? 3 : g_cfg.anisotropy >= 4 ? 2 : g_cfg.anisotropy >= 2 ? 1 : 0;
     }
     return 0;
 }
@@ -69,11 +71,12 @@ static void set_value(int i, int v) {
         case 2: g_cfg.vsync = v; break;
         case 3: g_cfg.fullscreen = v; break;
         case 4: g_cfg.controls = v == 2 ? "classic" : v ? "nunchuk" : "sideways"; break;
-        case 5: g_cfg.show_perf = v; break;
-        case 6: g_cfg.msaa = v ? 1 << v : 1; break;
-        case 7: g_cfg.smooth_textures = v; break;
-        case 8: g_cfg.speed = v == 3 ? 0 : v + 1; break;
-        case 9: g_cfg.anisotropy = v ? 1 << v : 1; break;
+        case 5: g_cfg.swap_ab_xy = v; break;
+        case 6: g_cfg.show_perf = v; break;
+        case 7: g_cfg.msaa = v ? 1 << v : 1; break;
+        case 8: g_cfg.smooth_textures = v; break;
+        case 9: g_cfg.speed = v == 3 ? 0 : v + 1; break;
+        case 10: g_cfg.anisotropy = v ? 1 << v : 1; break;
     }
     config_save();
 }

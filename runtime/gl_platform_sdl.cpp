@@ -130,10 +130,11 @@ static void update_input() {
         if (btn(SDL_CONTROLLER_BUTTON_DPAD_DOWN)) b |= IN_DOWN;
         if (btn(SDL_CONTROLLER_BUTTON_DPAD_LEFT)) b |= IN_LEFT;
         if (btn(SDL_CONTROLLER_BUTTON_DPAD_RIGHT)) b |= IN_RIGHT;
-        if (btn(SDL_CONTROLLER_BUTTON_A)) b |= IN_SOUTH;
-        if (btn(SDL_CONTROLLER_BUTTON_B)) b |= IN_EAST;
-        if (btn(SDL_CONTROLLER_BUTTON_X)) b |= IN_WEST;
-        if (btn(SDL_CONTROLLER_BUTTON_Y)) b |= IN_NORTH;
+        const bool sw = g_cfg.swap_ab_xy;
+        if (btn(SDL_CONTROLLER_BUTTON_A)) b |= sw ? IN_EAST : IN_SOUTH;
+        if (btn(SDL_CONTROLLER_BUTTON_B)) b |= sw ? IN_SOUTH : IN_EAST;
+        if (btn(SDL_CONTROLLER_BUTTON_X)) b |= sw ? IN_NORTH : IN_WEST;
+        if (btn(SDL_CONTROLLER_BUTTON_Y)) b |= sw ? IN_WEST : IN_NORTH;
         if (btn(SDL_CONTROLLER_BUTTON_LEFTSHOULDER)) b |= IN_L1;
         if (btn(SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)) b |= IN_R1;
         if (SDL_GameControllerGetAxis(g_pad, SDL_CONTROLLER_AXIS_TRIGGERLEFT) > 16000) b |= IN_L2;
@@ -210,8 +211,8 @@ bool gl_platform_poll() {
                 else if (btn == SDL_CONTROLLER_BUTTON_DPAD_DOWN) key = OV_KEY_DOWN;
                 else if (btn == SDL_CONTROLLER_BUTTON_DPAD_LEFT) key = OV_KEY_LEFT;
                 else if (btn == SDL_CONTROLLER_BUTTON_DPAD_RIGHT) key = OV_KEY_RIGHT;
-                else if (btn == SDL_CONTROLLER_BUTTON_A) key = OV_KEY_OK;
-                else if (btn == SDL_CONTROLLER_BUTTON_B) key = OV_KEY_BACK;
+                else if (btn == SDL_CONTROLLER_BUTTON_A) key = g_cfg.swap_ab_xy ? OV_KEY_BACK : OV_KEY_OK;
+                else if (btn == SDL_CONTROLLER_BUTTON_B) key = g_cfg.swap_ab_xy ? OV_KEY_OK : OV_KEY_BACK;
                 if (key >= 0) apply_action(overlay_input(key));
             }
         }
