@@ -1,0 +1,16 @@
+# Generated from the game binary - recreate with recomp.py from your own disc
+gen/
+main.dol
+*.dol
+*.iso
+*.ciso
+*.wbfs
+extracted/
+game/
+nand/
+build*/
+*.exe
+*.dll
+*.zip
+__pycache__/
+chocobo.ini

@@ -1,0 +1,48 @@
+# HLE replacements: "Name" -> hle_Name() in runtime, "Name = value" -> stub returning value ("void" = no return value)
+OSReport
+OSPanic
+__OSInitAudioSystem = void
+OSSaveContext
+OSLoadContext
+OSSwitchFiber
+OSSwitchFiberEx
+OSDisableInterrupts
+OSEnableInterrupts
+OSRestoreInterrupts
+__ios_Ipc2
+# Wii Remote: replace WPAD/KPAD (no Bluetooth stack)
+KPADInit = void
+KPADSetFSStickClamp = void
+KPADRead
+WPADProbe
+WPADControlMotor = 0
+WPADControlSpeaker = 0
+WPADSetConnectCallback = 0
+WPADStartClearDevice = void
+__AI_SRC_INIT = void
+__AXOutInitDSP = void   # DSP ucode boot handshake: nothing to boot
+WPADCanSendStreamData = 0
+WPADSendStreamData = 0xFFFFFFFFu
+WPADDisconnect = void
+WPADEnableMotor = void
+WPADGetInfoAsync = 0xFFFFFFFFu
+WPADGetSpeakerVolume = 0
+WPADIsMotorEnabled = 1
+WPADIsSpeakerEnabled = 0
+WPADSaveConfig = 1
+WPADSetExtensionCallback = 0
+WPADSetSpeakerVolume = void
+WPADStartFastSimpleSync = 0
+WPADStartSimpleSync = 0
+WPADStopSimpleSync = 0
+fn_802F5A84 = 0
+# Audio interface + DSP (AX microcode runs on the host)
+AIRegisterDMACallback
+AIInitDMA
+AIStartDMA
+fn_8030565C = 0     # AIGetDMABytesLeft
+DSPCheckMailToDSP
+DSPCheckMailFromDSP
+DSPSendMailToDSP
+DSPAssertTask
+SCGetAspectRatio
