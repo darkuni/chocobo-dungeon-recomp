@@ -1,5 +1,8 @@
 # Chocobo's Dungeon - native PC port (static recompilation)
 
+**Status: complete (1.0).** Plays through the opening, tutorial, town and dungeons on Windows 10/11.
+See [CHANGELOG.md](CHANGELOG.md) for the history.
+
 A native Windows/Linux port of *Final Fantasy Fables: Chocobo's Dungeon* (Wii, R7FEGD) built by
 statically recompiling the game's PowerPC code to C++ and replacing the Wii hardware and OS
 with a host runtime.
