@@ -15,6 +15,7 @@
 #include "gx_tex.h"
 #include "gx_render.h"
 #include "config.h"
+#include "audio_ring.h"
 #include <vector>
 #include <unordered_map>
 #include <cmath>
@@ -792,6 +793,11 @@ static void efb_copy_impl(uint32_t val) {
             }
             if (perf && t - t0 > 5000000000ull && g_perf_text[0]) {
                 fprintf(g_log, "[perf] %s\n", g_perf_text);
+                { extern uint64_t g_ai_skipped; AudioStats a = audio_ring_stats();
+                  static uint64_t u0 = 0, d0 = 0, k0 = 0;
+                  fprintf(g_log, "[audio] underruns %llu, dropped %llu frames, AI periods skipped %llu, buffered %d ms\n",
+                          (unsigned long long)(a.underruns - u0), (unsigned long long)(a.dropped_frames - d0), (unsigned long long)(g_ai_skipped - k0), a.buffered_ms);
+                  u0 = a.underruns; d0 = a.dropped_frames; k0 = g_ai_skipped; }
                 double sec = (t - t0) / 1e9;
                 fprintf(g_log, "[perf] %.1f fps | VI %.1f/s (want 59.9) | audio %.0f/s (want 333) | GPU draw %.0f%%, copies %.0f%% of time | %.0f draws -> %.0f GL calls per frame\n",
                         (g_frame - f0) / sec, (g_vi_count - vi0) / sec, (g_ax_frames - ax0) / sec, g_ns_draw / 1e7 / sec, g_ns_copy / 1e7 / sec,
