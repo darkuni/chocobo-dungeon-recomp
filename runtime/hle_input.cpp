@@ -23,6 +23,9 @@
 #include <algorithm>
 
 extern uint64_t g_vi_count;
+extern uint64_t g_frames_done;   // finished frames (gx_render)
+// AUTOPRESS timing: retraces by default, game frames with AUTOPRESS_CLOCK=frames
+static uint64_t script_clock() { static bool fr = getenv("AUTOPRESS_CLOCK") != nullptr; return fr ? g_frames_done : g_vi_count; }
 HostInput g_host_input;
 uint32_t g_host_buttons = 0;   // legacy raw remote mask (unused by the SDL layer now)
 
@@ -84,7 +87,7 @@ static uint32_t classic_buttons() {
     if (b & IN_BACK) m |= CL_MINUS;
     if (b & IN_GUIDE) m |= CL_HOME;
     // scripted presses (AUTOPRESS) use remote names; map the common ones
-    for (auto& p : g_script) if (g_vi_count >= p.from && g_vi_count <= p.to) {
+    for (auto& p : g_script) if (script_clock() >= p.from && script_clock() <= p.to) {
         if (p.mask & W_A) m |= CL_A;
         if (p.mask & W_B) m |= CL_B;
         if (p.mask & W_PLUS) m |= CL_PLUS;
@@ -135,7 +138,7 @@ static uint32_t remote_buttons(float& sx, float& sy) {
     if (b & IN_START) m |= W_PLUS;
     if (b & IN_BACK) m |= W_MINUS;
     if (b & IN_GUIDE) m |= W_HOME;
-    for (auto& p : g_script) if (g_vi_count >= p.from && g_vi_count <= p.to) m |= p.mask;
+    for (auto& p : g_script) if (script_clock() >= p.from && script_clock() <= p.to) m |= p.mask;
     float len = std::sqrt(sx * sx + sy * sy);
     if (len > 1) { sx /= len; sy /= len; }
     return m;

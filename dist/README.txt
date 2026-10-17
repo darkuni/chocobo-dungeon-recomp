@@ -1,4 +1,4 @@
-Final Fantasy Fables: Chocobo's Dungeon - native Windows build (static recompilation)  v0.6
+Final Fantasy Fables: Chocobo's Dungeon - native Windows build (static recompilation)  v0.7
 
 Folder layout (portable - copy the whole folder to any Windows 10/11 PC)
   ChocoboDungeon\

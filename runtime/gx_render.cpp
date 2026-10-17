@@ -30,6 +30,7 @@ static GLuint g_fbo, g_efb_color, g_efb_depth, g_vao, g_vbo, g_vs;
 static GLuint g_xfb_tex;            // last presented frame
 static int g_xfb_w = 640, g_xfb_h = 480;
 static uint64_t g_frame = 0;
+uint64_t g_frames_done = 0;
 static uint64_t g_tex_epoch = 1;   // bumps each frame and on TLUT loads: texture cache re-validates
 char g_perf_text[128] = "";
 #include <chrono>
@@ -39,6 +40,7 @@ static inline uint64_t now_ns_r();
 struct ScopeNs { uint64_t& acc; uint64_t t; ScopeNs(uint64_t& a) : acc(a), t(now_ns_r()) {} ~ScopeNs() { acc += now_ns_r() - t; } };
 static inline uint64_t now_ns_r() { return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
 static bool g_gxdbg = getenv("GXDEBUG") != nullptr;
+static long g_fdump = getenv("FRAMEDUMP") ? atol(getenv("FRAMEDUMP")) : -1;
 static int g_frame_draws = 0;
 static std::string g_frame_tex;
 
@@ -70,7 +72,7 @@ static const char* kVS =
     "void main(){ gl_Position=a_pos; v_c0=a_c0; v_c1=a_c1;\n"
     " v_tc[0]=a_tc0; v_tc[1]=a_tc1; v_tc[2]=a_tc2; v_tc[3]=a_tc3; v_tc[4]=a_tc4; v_tc[5]=a_tc5; v_tc[6]=a_tc6; v_tc[7]=a_tc7; }\n";
 
-struct Prog { GLuint p; GLint u_reg, u_konst, u_aref, u_tex; };
+struct Prog { GLuint p; GLint u_reg, u_konst, u_aref, u_tex, u_tscale; };
 static std::unordered_map<uint64_t, Prog> g_progs;
 
 static Prog& get_prog() {
@@ -88,6 +90,7 @@ static Prog& get_prog() {
     pr.u_konst = glGetUniformLocation(pr.p, "u_konst");
     pr.u_aref = glGetUniformLocation(pr.p, "u_aref");
     pr.u_tex = glGetUniformLocation(pr.p, "u_tex");
+    pr.u_tscale = glGetUniformLocation(pr.p, "u_tscale");
     glUseProgram(pr.p);
     GLint units[8] = {0, 1, 2, 3, 4, 5, 6, 7};
     glUniform1iv(pr.u_tex, 8, units);
@@ -99,12 +102,14 @@ static Prog& get_prog() {
 static GLuint g_rfbo = 0, g_efb_msc = 0;
 static int g_cfg_msaa_seen = -1;
 static int g_msaa = 1;
+static GLuint g_efb_dtex = 0;   // single-sample depth as a texture (for Z copies)
 static void create_efb() {
     if (!g_fbo) glGenFramebuffers(1, &g_fbo);
     if (!g_rfbo) glGenFramebuffers(1, &g_rfbo);
     if (!g_efb_color) glGenTextures(1, &g_efb_color);
     if (!g_efb_depth) glGenRenderbuffers(1, &g_efb_depth);
     if (!g_efb_msc) glGenRenderbuffers(1, &g_efb_msc);
+    if (!g_efb_dtex) glGenTextures(1, &g_efb_dtex);
     GLint maxs = 1;
     glGetIntegerv(GL_MAX_SAMPLES, &maxs);
     g_msaa = std::max(1, std::min(g_cfg.msaa, (int)maxs));
@@ -112,23 +117,31 @@ static void create_efb() {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, PW, PH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glBindRenderbuffer(GL_RENDERBUFFER, g_efb_depth);
-    if (g_msaa > 1) glRenderbufferStorageMultisample(GL_RENDERBUFFER, g_msaa, GL_DEPTH_COMPONENT24, PW, PH);
-    else glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, PW, PH);
+    glBindTexture(GL_TEXTURE_2D, g_efb_dtex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, PW, PH, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
     glBindFramebuffer(GL_FRAMEBUFFER, g_fbo);
     if (g_msaa > 1) {
+        glBindRenderbuffer(GL_RENDERBUFFER, g_efb_depth);
+        glRenderbufferStorageMultisample(GL_RENDERBUFFER, g_msaa, GL_DEPTH_COMPONENT24, PW, PH);
         glBindRenderbuffer(GL_RENDERBUFFER, g_efb_msc);
         glRenderbufferStorageMultisample(GL_RENDERBUFFER, g_msaa, GL_RGBA8, PW, PH);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, g_efb_msc);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, g_efb_depth);
         glBindFramebuffer(GL_FRAMEBUFFER, g_rfbo);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, g_efb_color, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, g_efb_dtex, 0);
         glBindFramebuffer(GL_FRAMEBUFFER, g_fbo);
     } else {
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, 0);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, g_efb_color, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, g_efb_dtex, 0);
     }
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, g_efb_depth);
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) fprintf(g_log, "[gl] EFB incomplete (MSAA %d)\n", g_msaa);
 }
 // framebuffer to read EFB contents from (resolving MSAA first)
@@ -137,7 +150,7 @@ static GLuint efb_read_fbo() {
     glBindFramebuffer(GL_READ_FRAMEBUFFER, g_fbo);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, g_rfbo);
     glDisable(GL_SCISSOR_TEST);
-    glBlitFramebuffer(0, 0, PW, PH, 0, 0, PW, PH, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glBlitFramebuffer(0, 0, PW, PH, 0, 0, PW, PH, GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
     return g_rfbo;
 }
 
@@ -507,6 +520,7 @@ static GLuint get_sampler(uint32_t mode0, uint32_t mode1, int levels) {
     return smp;
 }
 
+static float g_tscale[8][2];
 static void bind_texmap(int m) {
     uint32_t base = m < 4 ? 0x80 + m : 0xA0 + (m - 4);
     uint32_t mode0 = g_gx.bp[base], mode1 = g_gx.bp[base + 4], img0 = g_gx.bp[base + 8], img3 = g_gx.bp[base + 0x14], tlut = g_gx.bp[base + 0x18];
@@ -518,8 +532,13 @@ static void bind_texmap(int m) {
     GLuint tex = 0;
     int levels = 1;
     auto cp = g_copies.find(addr);
-    if (cp != g_copies.end() && cp->second.w == w && cp->second.h == h) {
+    g_tscale[m][0] = g_tscale[m][1] = 1.0f;
+    // an EFB copy at this address; games often declare a larger power-of-two texture and
+    // sample only the copied corner, so coordinates are rescaled to the copy's size
+    if (cp != g_copies.end() && cp->second.w > 0 && cp->second.w <= w && cp->second.h <= h) {
         tex = cp->second.tex;
+        g_tscale[m][0] = (float)w / cp->second.w;
+        g_tscale[m][1] = (float)h / cp->second.h;
     } else {
         uint32_t tlut_addr = (tlut & 1023) << 9;
         int tlut_fmt = (tlut >> 10) & 3;
@@ -662,6 +681,81 @@ static void resize_efb(int scale) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     fprintf(g_log, "[gl] internal resolution now %dx%d, MSAA %dx\n", PW, PH, g_msaa);
 }
+// EFB -> texture copies in the requested format. The copy texture is sampled directly
+// (no decode), so it holds what the TEV would read from that format: single-channel
+// formats in all four channels, IA/RA formats as (I,I,I,A), depth formats from the Z buffer.
+static GLuint g_copy_prog = 0, g_copy_vao = 0;
+static GLint g_cu_mode = -1, g_cu_rect = -1, g_cu_col = -1, g_cu_dep = -1, g_cu_half = -1;
+static void copy_convert(GLuint dst_tex, int sx, int sy, int w, int h, int tw, int th, int fmt, bool intensity, bool depth) {
+    if (!g_copy_prog) {
+        const char* vs = "#version 330 core\nvoid main(){ vec2 p = vec2(gl_VertexID & 1, gl_VertexID >> 1) * 2.0 - 1.0; gl_Position = vec4(p, 0.0, 1.0); }\n";
+        const char* fs =
+            "#version 330 core\n"
+            "uniform sampler2D u_col; uniform sampler2D u_dep; uniform int u_mode; uniform vec4 u_rect; uniform int u_half; out vec4 o;\n"
+            "vec4 fetch(vec2 px) { return texture(u_col, px / vec2(textureSize(u_col, 0))); }\n"
+            "void main(){\n"
+            " vec2 px = vec2(u_rect.x + gl_FragCoord.x * u_rect.z, u_rect.y - gl_FragCoord.y * u_rect.w);\n"
+            " int m = u_mode & 15; bool inten = (u_mode & 16) != 0; bool dep = (u_mode & 32) != 0;\n"
+            " if (dep) {\n"
+            "  float d = texelFetch(u_dep, ivec2(px), 0).r;\n"
+            "  float z = floor(clamp(d, 0.0, 1.0) * 16777215.0 + 0.5);\n"
+            "  float hi = floor(z / 65536.0), mid = mod(floor(z / 256.0), 256.0), lo = mod(z, 256.0);\n"
+            "  vec4 c;\n"
+            "  if (m == 9) c = vec4(mid / 255.0);\n"                           // Z8M
+            "  else if (m == 10) c = vec4(lo / 255.0);\n"                      // Z8L
+            "  else if (m == 3 || m == 11) c = vec4(vec3(hi / 255.0), mid / 255.0);\n"   // Z16 (hi,mid)
+            "  else if (m == 12) c = vec4(vec3(mid / 255.0), lo / 255.0);\n"   // Z16L
+            "  else if (m == 6) c = vec4(hi / 255.0, mid / 255.0, lo / 255.0, 1.0);\n"   // Z24X8
+            "  else c = vec4(hi / 255.0);\n"                                   // Z4 / Z8 (high byte)
+            "  o = c; return;\n"
+            " }\n"
+            " vec4 c = fetch(px);\n"
+            " float Y = clamp(dot(c.rgb, vec3(0.257, 0.504, 0.098)) + 16.0 / 255.0, 0.0, 1.0);\n"
+            " if (m == 0 || m == 1 || m == 8) o = inten ? vec4(Y) : vec4(c.r);\n"   // I4/I8 or R4/R8
+            " else if (m == 2 || m == 3) o = inten ? vec4(vec3(Y), c.a) : vec4(vec3(c.r), c.a);\n"   // IA4/IA8 or RA
+            " else if (m == 4) o = vec4(c.rgb, 1.0);\n"                        // RGB565
+            " else if (m == 7) o = vec4(c.a);\n"                               // A8
+            " else if (m == 9) o = vec4(c.g);\n"                               // G8
+            " else if (m == 10) o = vec4(c.b);\n"                              // B8
+            " else if (m == 11) o = vec4(vec3(c.r), c.g);\n"                  // RG8
+            " else if (m == 12) o = vec4(vec3(c.g), c.b);\n"                  // GB8
+            " else o = c;\n"                                                   // RGB5A3 / RGBA8
+            "}\n";
+        g_copy_prog = glCreateProgram();
+        glAttachShader(g_copy_prog, compile(GL_VERTEX_SHADER, vs));
+        glAttachShader(g_copy_prog, compile(GL_FRAGMENT_SHADER, fs));
+        glLinkProgram(g_copy_prog);
+        g_cu_mode = glGetUniformLocation(g_copy_prog, "u_mode");
+        g_cu_rect = glGetUniformLocation(g_copy_prog, "u_rect");
+        g_cu_col = glGetUniformLocation(g_copy_prog, "u_col");
+        g_cu_dep = glGetUniformLocation(g_copy_prog, "u_dep");
+        g_cu_half = glGetUniformLocation(g_copy_prog, "u_half");
+        glGenVertexArrays(1, &g_copy_vao);
+    }
+    static GLuint fbo = 0;
+    if (!fbo) glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, dst_tex, 0);
+    glViewport(0, 0, tw * RS, th * RS);
+    glDisable(GL_SCISSOR_TEST); glDisable(GL_BLEND); glDisable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE);
+    glDisable(GL_COLOR_LOGIC_OP);
+    glColorMask(1, 1, 1, 1);
+    glUseProgram(g_copy_prog);
+    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, g_efb_color); glBindSampler(0, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, g_efb_dtex); glBindSampler(1, 0);
+    glUniform1i(g_cu_col, 0); glUniform1i(g_cu_dep, 1);
+    glUniform1i(g_cu_mode, fmt | (intensity ? 16 : 0) | (depth ? 32 : 0));
+    glUniform1i(g_cu_half, 0);
+    glUniform4f(g_cu_rect, (float)(sx * RS), (float)((EFB_H - sy) * RS), (float)w / tw, (float)h / th);
+    glBindVertexArray(g_copy_vao);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, g_efb_color);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glBindFramebuffer(GL_FRAMEBUFFER, g_fbo);
+    glViewport(0, 0, PW, PH);
+}
+
 static void efb_copy_impl(uint32_t val);
 static void efb_copy(uint32_t val) { gx_flush(); ScopeNs _sc(g_ns_copy); efb_copy_impl(val); }
 static void efb_copy_impl(uint32_t val) {
@@ -675,6 +769,7 @@ static void efb_copy_impl(uint32_t val) {
     if (to_xfb) {
         // finished frame
         g_frame++;
+        g_frames_done = g_frame;
         g_tex_epoch++;
         {
             static uint64_t t0 = now_ns_r(), f0 = 0;
@@ -732,7 +827,7 @@ static void efb_copy_impl(uint32_t val) {
             std::vector<uint8_t> px((size_t)w * h * 4 * RS * RS);
             glBindFramebuffer(GL_READ_FRAMEBUFFER, xfbo);
             glReadPixels(0, 0, w * RS, h * RS, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
-            char path[512]; snprintf(path, sizeof path, "%s/frame_%06llu.ppm", dir, (unsigned long long)g_frame);
+            extern uint64_t g_vi_count; char path[512]; snprintf(path, sizeof path, "%s/frame_%06llu_vi%06llu.ppm", dir, (unsigned long long)g_frame, (unsigned long long)g_vi_count);
             save_ppm(path, px, w * RS, h * RS);
         }
         gl_platform_present(g_xfb_tex, w * RS, h * RS);
@@ -745,15 +840,24 @@ static void efb_copy_impl(uint32_t val) {
         glBindTexture(GL_TEXTURE_2D, e.tex);
         if (e.w != tw || e.h != th) glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, tw * RS, th * RS, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
         e.w = tw; e.h = th; e.frame = g_frame;
-        // blit EFB region (flipping to top-down texture orientation)
-        static GLuint tmpfbo = 0;
-        if (!tmpfbo) glGenFramebuffers(1, &tmpfbo);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, tmpfbo);
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, e.tex, 0);
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, src_fbo);
-        glDisable(GL_SCISSOR_TEST);
-        glBlitFramebuffer(sx * RS, (EFB_H - sy) * RS, (sx + w) * RS, (EFB_H - sy - h) * RS, 0, 0, tw * RS, th * RS, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-        glBindFramebuffer(GL_FRAMEBUFFER, g_fbo);
+        int cfmt = (int)((val >> 4) & 7) + (int)((val >> 3) & 1) * 8;   // bits 3-6, low bit is the msb
+        bool inten = (val >> 15) & 1;
+        bool zcopy = (bp[0x43] & 7) == 3;     // pixel format Z24: the copy reads the depth buffer
+        if (g_gxdbg || (long)g_frame == g_fdump) fprintf(g_log, "[copy] frame %llu dst %08X src %d,%d %dx%d -> %dx%d fmt %d%s%s\n", (unsigned long long)g_frame,
+                                                         dst, sx, sy, w, h, tw, th, cfmt, inten ? " intensity" : "", zcopy ? " DEPTH" : "");
+        if (!zcopy && (cfmt == 6 || cfmt == 5)) {
+            // plain color: blit EFB region (flipping to top-down texture orientation)
+            static GLuint tmpfbo = 0;
+            if (!tmpfbo) glGenFramebuffers(1, &tmpfbo);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, tmpfbo);
+            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, e.tex, 0);
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, src_fbo);
+            glDisable(GL_SCISSOR_TEST);
+            glBlitFramebuffer(sx * RS, (EFB_H - sy) * RS, (sx + w) * RS, (EFB_H - sy - h) * RS, 0, 0, tw * RS, th * RS, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+            glBindFramebuffer(GL_FRAMEBUFFER, g_fbo);
+        } else {
+            copy_convert(e.tex, sx, sy, w, h, tw, th, cfmt, inten, zcopy);
+        }
         // keep the RAM copy's texture cache entry from shadowing this copy
     }
     if (clear) {
@@ -829,17 +933,30 @@ static void setup_draw_state(uint8_t prim, uint32_t count, const std::vector<Vtx
         if ((order >> 6) & 1) used |= 1u << (order & 7);
     }
     for (int m = 0; m < 8; m++) if (used & (1u << m)) bind_texmap(m);
+    { float ts[16]; for (int m = 0; m < 8; m++) { ts[2 * m] = (used & (1u << m)) ? g_tscale[m][0] : 1.f; ts[2 * m + 1] = (used & (1u << m)) ? g_tscale[m][1] : 1.f; }
+      glUniform2fv(pr.u_tscale, 8, ts); }
     static uint32_t dbg_addr = getenv("TEXDUMP") ? (uint32_t)strtoul(getenv("TEXDUMP"), nullptr, 16) : 0;
     if (dbg_addr && (used & 1) && ((((g_gx.bp[0x94] & 0xFFFFFF) << 5) | 0x80000000u) == dbg_addr)) {
         static int n = 0;
-        if (n++ == 300) {
+        if (n++ == 120) {
             fprintf(g_log, "[gxdbg] prim %02X count %u genmode %06X zmode %06X cmode0 %06X cmode1 %06X pectl %06X alpha %06X\n",
                     prim, count, g_gx.bp[0], g_gx.bp[0x40], g_gx.bp[0x41], g_gx.bp[0x42], g_gx.bp[0x43], g_gx.bp[0xF3]);
             for (uint32_t i = 0; i < verts.size() && i < 6; i++)
                 fprintf(g_log, "  v%u pos %.3f %.3f %.3f %.3f c0 %.2f %.2f %.2f %.2f tc0 %.3f %.3f %.3f\n", i, verts[i].pos[0], verts[i].pos[1], verts[i].pos[2], verts[i].pos[3],
                         verts[i].c0[0], verts[i].c0[1], verts[i].c0[2], verts[i].c0[3], verts[i].tc[0][0], verts[i].tc[0][1], verts[i].tc[0][2]);
-            fprintf(g_log, "  regs %.2f %.2f %.2f %.2f | konst0 %.2f %.2f %.2f %.2f\n%s\n", g_tevreg[0][0], g_tevreg[0][1], g_tevreg[0][2], g_tevreg[0][3],
-                    g_konst[0][0], g_konst[0][1], g_konst[0][2], g_konst[0][3], tev_shader_source(g_gx.bp).c_str());
+            for (int i = 0; i < 4; i++) fprintf(g_log, "  reg%d %.3f %.3f %.3f %.3f | konst%d %.3f %.3f %.3f %.3f\n", i, g_tevreg[i][0], g_tevreg[i][1], g_tevreg[i][2], g_tevreg[i][3],
+                    i, g_konst[i][0], g_konst[i][1], g_konst[i][2], g_konst[i][3]);
+            for (int m = 0; m < 8; m++) if (used & (1u << m)) {
+                uint32_t base = m < 4 ? 0x80 + m : 0xA0 + (m - 4);
+                uint32_t img0 = g_gx.bp[base + 8], img3 = g_gx.bp[base + 0x14];
+                uint32_t a = ((img3 & 0xFFFFFF) << 5) | 0x80000000u;
+                fprintf(g_log, "  texmap%d %08X fmt %d %dx%d mode0 %06X mode1 %06X copy %d\n", m, a, (img0 >> 20) & 15, (img0 & 1023) + 1, ((img0 >> 10) & 1023) + 1,
+                        g_gx.bp[base], g_gx.bp[base + 4], (int)g_copies.count(a));
+            }
+            for (int i = 0; i < 8; i++) fprintf(g_log, "  ksel%d %06X", i, g_gx.bp[0xF6 + i]);
+            fprintf(g_log, "\n  texgen: ");
+            for (int i = 0; i < 2; i++) fprintf(g_log, "tg%d %08X ", i, g_gx.xf_reg[0x40 + i]);
+            fprintf(g_log, "\n%s\n", tev_shader_source(g_gx.bp).c_str());
         }
     }
     apply_state();
@@ -848,6 +965,8 @@ static void setup_draw_state(uint8_t prim, uint32_t count, const std::vector<Vtx
 void gx_draw(uint8_t prim, int vat, uint32_t count, const uint8_t* data, int vsize) {
     ScopeNs _sc(g_ns_draw);
     if (!ensure_gl() || count == 0) return;
+    static uint32_t skip_tex = getenv("SKIPTEX") ? (uint32_t)strtoul(getenv("SKIPTEX"), nullptr, 16) : 0;   // debug: drop draws using this texture
+    if (skip_tex && ((((g_gx.bp[0x94] & 0xFFFFFF) << 5) | 0x80000000u) == skip_tex)) return;
     g_frame_draws++;
     g_draw_calls_in++;
     static std::vector<Vtx> verts;

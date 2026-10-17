@@ -41,6 +41,7 @@ std::string tev_shader_source(const uint32_t* bp) {
          "uniform vec4 u_reg[4];\n"
          "uniform vec4 u_konst[4];\n"
          "uniform vec2 u_aref;\n"
+         "uniform vec2 u_tscale[8];\n"
          "vec3 q8(vec3 v){ return floor(v*255.0+0.5); }\n"
          "float q8(float v){ return floor(v*255.0+0.5); }\n"
          "void main(){\n"
@@ -55,7 +56,7 @@ std::string tev_shader_source(const uint32_t* bp) {
         int rswap = aenv & 3, tswap = (aenv >> 2) & 3;
         o << "  // stage " << s << "\n";
         if (enable)
-            o << "  tex = texture(u_tex[" << texmap << "], v_tc[" << texcoord << "].xy / (v_tc[" << texcoord << "].z == 0.0 ? 1.0 : v_tc[" << texcoord << "].z))" << swizzle(bp, tswap) << ";\n";
+            o << "  tex = texture(u_tex[" << texmap << "], u_tscale[" << texmap << "] * v_tc[" << texcoord << "].xy / (v_tc[" << texcoord << "].z == 0.0 ? 1.0 : v_tc[" << texcoord << "].z))" << swizzle(bp, tswap) << ";\n";
         else
             o << "  tex = vec4(1.0);\n";
         if (chan == 0) o << "  ras = v_c0" << swizzle(bp, rswap) << ";\n";

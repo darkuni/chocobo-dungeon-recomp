@@ -74,6 +74,7 @@
   X(PFNGLGETINTEGERVPROC, glGetIntegerv) \
   X(PFNGLGETFLOATVPROC, glGetFloatv) \
   X(PFNGLUNIFORM1IPROC, glUniform1i) \
+  X(PFNGLUNIFORM2FVPROC, glUniform2fv) \
   X(PFNGLUNIFORM4FPROC, glUniform4f) \
   X(PFNGLDELETERENDERBUFFERSPROC, glDeleteRenderbuffers) \
   X(PFNGLGETSTRINGIPROC, glGetStringi) \
@@ -152,6 +153,7 @@ GL_FUNCS(GL_DECLARE)
 #define glGetIntegerv p_glGetIntegerv
 #define glGetFloatv p_glGetFloatv
 #define glUniform1i p_glUniform1i
+#define glUniform2fv p_glUniform2fv
 #define glUniform4f p_glUniform4f
 #define glDeleteRenderbuffers p_glDeleteRenderbuffers
 #define glGetStringi p_glGetStringi
