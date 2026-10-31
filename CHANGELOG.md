@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1 - 2026-10-30
+- First start extracts your own disc image (.iso / .ciso) into the `extracted` folder; no extraction tool needed.
+- Windows builds and releases come from GitHub Actions.
+
 ## 1.0 (final) - 2026-10-16
 - Version 1.0 stamped in the executable; no functional changes from 0.8.
 

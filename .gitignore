@@ -1,5 +1,4 @@
-# Generated from the game binary - recreate with recomp.py from your own disc
-gen/
+# Game data - never commit (bring your own disc)
 main.dol
 *.dol
 *.iso

@@ -375,6 +375,7 @@ static std::string exe_path(const char* argv0) {
     return argv0 ? argv0 : "";
 }
 
+#include "game_setup.h"
 int main(int argc, char** argv) {
     // game data: argument, or a game folder ("extracted" or "game") next to / above the
     // executable (checked relative to the exe first, then to the working folder)
@@ -394,14 +395,22 @@ int main(int argc, char** argv) {
             if (found) break;
         }
         if (!found) {
-            fprintf(stderr, "Game data not found. Put the extracted disc (folders 'sys' and 'files') in a folder named\n"
-                            "'extracted' next to chocobo.exe, or run: chocobo.exe <path to extracted folder>\n");
+            // first start: extract the player's own disc image (.iso / .ciso) next to the exe
+            std::string err, used;
+            int r = game_setup_auto(exedir, exedir + "extracted", true, err, used);
+            if (r > 0) { rootstr = exedir + "extracted"; fprintf(stderr, "[setup] done\n"); }
+            else {
+                std::string msg = r < 0 ? "Could not set up the game from " + used + ":\n" + err
+                    : std::string("Game files not found.\n\nPut your own Chocobo's Dungeon disc image (.iso or .ciso) in the same "
+                                  "folder as chocobo.exe and start it again: the 'extracted' folder is made from it on the first "
+                                  "start.\n\n(Or put an already extracted disc - the 'sys' and 'files' folders - in a folder named "
+                                  "'extracted', or start it as: chocobo.exe <path to extracted folder>)");
+                fprintf(stderr, "%s\n", msg.c_str());
 #ifdef _WIN32
-            MessageBoxA(nullptr, "Game data not found.\n\nPut the extracted disc (the 'sys' and 'files' folders) in a folder named "
-                                 "'extracted' next to chocobo.exe, or start it as:\n  chocobo.exe <path to extracted folder>",
-                        "Chocobo's Dungeon", MB_ICONERROR);
+                MessageBoxA(nullptr, msg.c_str(), "Chocobo's Dungeon", MB_ICONERROR);
 #endif
-            return 1;
+                return 1;
+            }
         }
     }
     const char* root = rootstr.c_str();

@@ -1,15 +1,19 @@
-Final Fantasy Fables: Chocobo's Dungeon - native Windows build (static recompilation)  v1.0 (final)
+Final Fantasy Fables: Chocobo's Dungeon - native Windows build (static recompilation)  @VERSION@
+https://github.com/darkuni/chocobo-dungeon-recomp
 
 Folder layout (portable - copy the whole folder to any Windows 10/11 PC)
   ChocoboDungeon\
     chocobo.exe, SDL2.dll, libwinpthread-1.dll   the program
     chocobo.ini                                    settings (created on first run)
-    extracted\sys, extracted\files                 game data from YOUR disc (not included)
+    extracted\sys, extracted\files                 game data from YOUR disc (made on the first start)
     nand\                                          saves (created on first run)
 
 Setup
-  Put the extracted disc's 'sys' and 'files' folders into 'extracted', then run chocobo.exe.
-  (Or start it with a path: chocobo.exe D:\somewhere\extracted - saves then go next to that folder.)
+  Put your own Chocobo's Dungeon disc image (.iso or .ciso, NTSC-U R7FEGD) in this folder and run
+  chocobo.exe. On the first start it extracts the disc into the 'extracted' folder (up to a minute);
+  after that the disc image isn't needed any more. Nothing else to install.
+  (Already have an extracted disc? Put its 'sys' and 'files' folders into 'extracted' instead, or start
+  it with a path: chocobo.exe D:\somewhere\extracted - saves then go next to that folder.)
   Requirements: 64-bit Windows 10/11, a GPU with OpenGL 3.3.
   To move to another PC, copy the whole ChocoboDungeon folder - saves and settings come along.
 

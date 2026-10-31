@@ -7,8 +7,15 @@ A native Windows/Linux port of *Final Fantasy Fables: Chocobo's Dungeon* (Wii, R
 statically recompiling the game's PowerPC code to C++ and replacing the Wii hardware and OS
 with a host runtime.
 
-**No game code or data is in this repository.** The recompiled C++ (`gen/`) is produced from
-`main.dol` taken from your own disc, and the game reads its assets from your own extracted disc.
+**No game data is in this repository or its releases:** the game reads its assets from your own disc.
+`gen/` (the C++ generated from the disc's `main.dol`) and the release exe contain code machine-translated from
+the game's executable.
+
+## Download
+
+Get the latest `ChocoboDungeon-<version>-win64.zip` from [Releases](https://github.com/darkuni/chocobo-dungeon-recomp/releases),
+unzip it, put your own disc image (`.iso` or `.ciso`, NTSC-U) in the same folder and run `chocobo.exe`: the first start
+extracts it into the `extracted` folder. Nothing else to install. See the zip's `README.txt` for settings and controls.
 
 ## How it works
 
@@ -32,7 +39,7 @@ with a host runtime.
 ## Building
 
 1. Get `main.dol` from your disc (`sys/main.dol` of an extracted image, e.g. `wit extract`).
-2. Generate the C++:
+2. Generate the C++ (already committed in `gen/`; only needed to regenerate it):
    ```
    python3 recomp.py main.dol symbols.txt gen 300
    ```
@@ -47,10 +54,12 @@ with a host runtime.
    Linux headless (EGL) build: `cmake -B build -G Ninja && ninja -C build`
    (add `-DUSE_SDL=ON` for a windowed SDL build).
 
-Compiling `gen/` takes a while (about 90 large files).
+Compiling `gen/` takes a while (about 90 large files). GitHub Actions builds every push; publishing a release attaches the zip.
 
 ## Running
 
-Put the extracted disc (`sys/`, `files/`) in an `extracted` folder next to the executable and run it.
+Put your disc image (`.iso` / `.ciso`) next to the executable and run it: the first start extracts it into
+`extracted/` (built in: `runtime/game_setup.cpp`). An already extracted disc (`sys/`, `files/`) in an `extracted`
+folder works too.
 Saves go to `nand/` and settings to `chocobo.ini` next to the executable. See `dist/README.txt`
 for settings and controls.
